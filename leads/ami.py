@@ -75,7 +75,8 @@ class AMIClient:
         login_action = {
             "Action": "Login",
             "Username": self.username,
-            "Secret": self.secret
+            "Secret": self.secret,
+	    "Events": "off"
         }
         try:
             res = self.send_action(login_action)
@@ -96,7 +97,9 @@ class AMIClient:
         """
         # Formato de canal local estándar en FreePBX
         channel = f"Local/{phone_number}@from-internal"
-        
+        # Limpiamos el nombre de comillas o saltos de línea que puedan romper el protocolo AMI
+        # safe_name = str(name).replace('"', '').replace('\r', '').replace('\n', '')
+
         originate_action = {
             "Action": "Originate",
             "Channel": channel,
@@ -104,7 +107,11 @@ class AMIClient:
             "Exten": exten,
             "Priority": priority,
             "Async": "true",  # Para no bloquear el socket esperando a que contesten la llamada
-            "CallerID": f"Kommo Lead <{phone_number}>"
+	    # 1. Para que el Vendedor vea el nombre en la pantalla de su teléfono:
+            # "CallerID": f'"{safe_name}" <{phone_number}>',
+            "CallerID": f"Kommo Lead <{phone_number}>" 
+            # 2. Para pasar datos internos al Dialplan de Asterisk (Separados por coma):
+            # "Variable": f"KOMMO_LEAD_NAME={safe_name},KOMMO_PHONE={phone_number}"
         }
         
         try:
