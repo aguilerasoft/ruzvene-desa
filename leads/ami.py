@@ -90,41 +90,77 @@ class AMIClient:
             logger.error(f"Excepción durante login en AMI: {e}")
             return False
 
-    def originate_call(self, phone_number, context="from-internal", exten="3000", priority="1"):
+    def originate_call(self, phone_number, context="custom-kommo-outbound", agent_exten="3000", priority="1", lead_name=None, kommo_id=None, lead_id=None):
         """
-        Envía una acción Originate a Asterisk para marcar el número del lead
-        y transferirlo a una extensión cuando conteste.
+        Envía una acción Originate a Asterisk para marcar primero al agente (extensión/cola)
+        y, una vez que este conteste, realizar la llamada al número del lead.
         """
-        # Formato de canal local estándar en FreePBX
-        channel = f"Local/{phone_number}@from-internal"
-        # Limpiamos el nombre de comillas o saltos de línea que puedan romper el protocolo AMI
-        # safe_name = str(name).replace('"', '').replace('\r', '').replace('\n', '')
+        # Marcamos primero al agente (ej: Local/3000@from-internal)
+        channel = f"Local/{agent_exten}@from-internal"
+        
+        # Limpiamos el nombre de caracteres que puedan romper el protocolo AMI
+        safe_name = str(lead_name or "Sin Nombre").replace('"', '').replace('\r', '').replace('\n', '')
+        
+        # Formatear el CallerID para enviar el Kommo ID y el nombre del cliente
+        caller_name = f"{kommo_id} - {safe_name}" if kommo_id else safe_name
+        caller_id = f'"{caller_name}" <{phone_number}>'
 
         originate_action = {
             "Action": "Originate",
             "Channel": channel,
             "Context": context,
-            "Exten": exten,
+            "Exten": phone_number,  # Se marcará al cliente al contestar el agente
             "Priority": priority,
-            "Async": "true",  # Para no bloquear el socket esperando a que contesten la llamada
-	    # 1. Para que el Vendedor vea el nombre en la pantalla de su teléfono:
-            # "CallerID": f'"{safe_name}" <{phone_number}>',
-            "CallerID": f"Kommo Lead <{phone_number}>" 
-            # 2. Para pasar datos internos al Dialplan de Asterisk (Separados por coma):
-            # "Variable": f"KOMMO_LEAD_NAME={safe_name},KOMMO_PHONE={phone_number}"
+            "Timeout": "20000",  # Esperar hasta 20 segundos a que responda el agente
+            "CallerID": caller_id
         }
-        
+
+        if lead_id:
+            # Puedes dejarlo, ya no afecta
+            originate_action["Variable"] = f"LEAD_ID={lead_id}"
+            
         try:
-            logger.info(f"Enviando Originate a {channel} -> Extensión {exten} en contexto {context}")
+            logger.info(f"Enviando Originate a Agente {channel} -> Cliente {phone_number} en contexto {context}")
             res = self.send_action(originate_action)
             if "Response: Success" in res:
-                logger.info(f"Acción Originate procesada con éxito para el número: {phone_number}")
+                logger.info(f"Acción Originate procesada con éxito para conectar Agente {agent_exten} con Cliente {phone_number}")
                 return True
             else:
-                logger.error(f"Fallo al originar llamada para {phone_number}: {res.strip()}")
+                logger.error(f"Fallo al originar llamada de Agente {agent_exten} a Cliente {phone_number}: {res.strip()}")
                 return False
         except Exception as e:
-            logger.error(f"Excepción al originar llamada a {phone_number}: {e}")
+            logger.error(f"Excepción al originar llamada de Agente {agent_exten} a Cliente {phone_number}: {e}")
+            return False
+
+    def check_agents_available(self, queue_name="3000"):
+        """
+        Envía un comando 'queue show <queue_name>' a Asterisk
+        y verifica si hay al menos un miembro/agente disponible (Not in use y no pausado).
+        """
+        action = {
+            "Action": "Command",
+            "Command": f"queue show {queue_name}"
+        }
+        try:
+            res = self.send_action(action)
+            if "Members:" in res:
+                lines = res.split("\n")
+                in_members_section = False
+                for line in lines:
+                    if "Members:" in line:
+                        in_members_section = True
+                        continue
+                    if in_members_section:
+                        if "Callers" in line or not line.strip():
+                            break
+                        # Un operador está libre si su estado contiene "Not in use" y no está pausado
+                        if "Not in use" in line and "paused" not in line.lower():
+                            logger.info(f"Agente disponible detectado en la cola {queue_name}: {line.strip()}")
+                            return True
+            logger.warning(f"No se encontraron agentes libres en la cola {queue_name}.")
+            return False
+        except Exception as e:
+            logger.error(f"Error al verificar agentes en la cola {queue_name}: {e}")
             return False
 
     def disconnect(self):

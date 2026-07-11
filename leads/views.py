@@ -1,13 +1,18 @@
 import re
+import os
+import subprocess
+from django.conf import settings
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, generics
+from rest_framework.permissions import IsAuthenticated
 from .models import Lead
 from .serializers import LeadSerializer
 from .tasks import trigger_outbound_call_task
 
 # 1. Endpoint para Next.js (Listar leads)
 class LeadListView(generics.ListAPIView):
+    permission_classes = [IsAuthenticated]
     queryset = Lead.objects.all().order_by('-creado_en')
     serializer_class = LeadSerializer
 
@@ -125,3 +130,67 @@ class KommoWebhookView(APIView):
             traceback.print_exc()
             print("===============================\n", flush=True)
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+# 3. Endpoint para ejecutar script de prueba desde el frontend
+class TestFlowView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        try:
+            # Ruta absoluta del script test_flow.py
+            script_path = os.path.join(settings.BASE_DIR, 'test_flow.py')
+            
+            # Ejecutar el script capturando la salida
+            result = subprocess.run(
+                ['python3', script_path], 
+                capture_output=True, 
+                text=True
+            )
+            
+            return Response({
+                "status": "success" if result.returncode == 0 else "error",
+                "output": result.stdout,
+                "error": result.stderr
+            }, status=status.HTTP_200_OK if result.returncode == 0 else status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+# 4. Webhook para recibir notificaciones desde Asterisk cuando un agente contesta
+class CallAnsweredWebhookView(APIView):
+    authentication_classes = [] # El PBX interno puede enviar sin auth
+    permission_classes = []
+
+    def post(self, request, *args, **kwargs):
+        # Puede recibir por json o form-data
+        lead_id = request.data.get('lead_id')
+        agent_extension = request.data.get('agent_extension')
+
+        print(f"\n=== WEBHOOK ASTERISK: LLAMADA CONTESTADA ===", flush=True)
+        print(f"Lead ID: {lead_id} | Agente crudo: {agent_extension}", flush=True)
+
+        if not lead_id or not agent_extension:
+            print("Error: faltan datos (lead_id o agent_extension).", flush=True)
+            return Response({"error": "Missing parameters"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Parsear el número de agente a partir de la cadena cruda del canal (ej. SIP/2005-000001a o PJSIP/2005-...)
+        parsed_agent = agent_extension
+        if '/' in parsed_agent:
+            parsed_agent = parsed_agent.split('/')[1]
+        if '-' in parsed_agent:
+            parsed_agent = parsed_agent.split('-')[0]
+        if '@' in parsed_agent:
+            parsed_agent = parsed_agent.split('@')[0]
+
+        try:
+            lead = Lead.objects.get(id=lead_id)
+            lead.agente_extension = parsed_agent
+            lead.save()
+            print(f"Lead {lead_id} actualizado. Agente asignado: {parsed_agent}\n", flush=True)
+            return Response({"status": "success"}, status=status.HTTP_200_OK)
+        except Lead.DoesNotExist:
+            print(f"Error: Lead {lead_id} no encontrado.\n", flush=True)
+            return Response({"error": "Lead not found"}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            print(f"Error procesando webhook asterisk: {str(e)}\n", flush=True)
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

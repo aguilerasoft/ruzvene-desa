@@ -54,7 +54,7 @@ fi
 # 2. Iniciar Celery Worker
 if [ -f ".venv/bin/celery" ]; then
     echo "[Celery] -> Iniciando worker de Celery..."
-    .venv/bin/celery -A core worker --loglevel=info &
+    .venv/bin/celery -A core worker --loglevel=info -B &
     CELERY_PID=$!
     PIDS+=($CELERY_PID)
     sleep 1

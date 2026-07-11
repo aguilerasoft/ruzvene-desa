@@ -6,6 +6,8 @@ class Lead(models.Model):
     telefono = models.CharField(max_length=50, blank=True, null=True)
     email = models.EmailField(blank=True, null=True)
     estado = models.CharField(max_length=100, blank=True, null=True)
+    estado_llamada = models.CharField(max_length=50, default='pendiente')
+    agente_extension = models.CharField(max_length=50, blank=True, null=True)
     creado_en = models.DateTimeField(auto_now_add=True)
     actualizado_en = models.DateTimeField(auto_now=True)
 
