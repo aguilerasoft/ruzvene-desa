@@ -6,22 +6,13 @@ logger = logging.getLogger(__name__)
 
 def normalize_phone_number(phone_str):
     """
-    Normaliza el número de teléfono:
-    1. Remueve espacios y caracteres especiales.
-    2. Si empieza con el código de país '58' seguido de un '0', elimina ese '0' (ej. 580412... -> 58412...).
-    3. Si el usuario ingresó un '0' al inicio sin código de país (ej. 0412...), puedes decidir si mantenerlo o removerlo.
+    Normaliza el número de teléfono removiendo espacios, 
+    caracteres especiales y el símbolo '+'
     """
     if not phone_str:
         return ""
-    
-    # 1. Remueve todo lo que no sea un dígito numérico
-    clean_str = re.sub(r'\D', '', phone_str)
-    
-    # 2. Si el número empieza con "580", reemplazamos "580" por "58" al inicio
-    if clean_str.startswith("580"):
-        clean_str = "58" + clean_str[3:]
-        
-    return clean_str
+    # Remueve todo lo que no sea un dígito numérico
+    return re.sub(r'\D', '', phone_str)
 
 class AMIClient:
     """
@@ -105,7 +96,7 @@ class AMIClient:
         y, una vez que este conteste, realizar la llamada al número del lead.
         """
         # Marcamos primero al agente (ej: Local/3000@from-internal)
-        channel = f"PJSIP/{agent_exten}@Movistar_VE"
+        channel = f"PJSIP/{agent_exten}@from-internal"
         
         # Limpiamos el nombre de caracteres que puedan romper el protocolo AMI
         safe_name = str(lead_name or "Sin Nombre").replace('"', '').replace('\r', '').replace('\n', '')

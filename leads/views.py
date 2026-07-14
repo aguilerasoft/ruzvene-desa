@@ -194,3 +194,36 @@ class CallAnsweredWebhookView(APIView):
         except Exception as e:
             print(f"Error procesando webhook asterisk: {str(e)}\n", flush=True)
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# 5. Vista de reporte de colas de llamadas de Asterisk
+class QueueReportView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        # Obtener filtros de los parámetros de la solicitud
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+        queue = request.query_params.get('queue')
+        agent = request.query_params.get('agent')
+        status_filter = request.query_params.get('status')
+        search = request.query_params.get('search')
+
+        from .asterisk_db import AsteriskDBClient
+        client = AsteriskDBClient()
+        
+        try:
+            report_data = client.get_queue_report(
+                start_date=start_date,
+                end_date=end_date,
+                queue=queue,
+                agent=agent,
+                status_filter=status_filter,
+                search=search
+            )
+            return Response(report_data, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({
+                "error": "Error al procesar el reporte de colas",
+                "detail": str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

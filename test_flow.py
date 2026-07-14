@@ -9,8 +9,8 @@ URL_WEBHOOK = "http://127.0.0.1:8000/api/webhook/kommo/"
 # Lista de 3 leads para probar la cola y estados de llamada
 leads_prueba = [
     {
-        "name": "Karina Gonzalez",
-        "phone": "3009",
+        "name": "Cristian Aguilera",
+        "phone": "04241222517",
         "contact_id": "43684617913",
         "lead_id": "351443627913"
     }
