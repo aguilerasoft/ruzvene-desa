@@ -6,10 +6,10 @@ logger = logging.getLogger(__name__)
 
 def normalize_phone_number(phone_str):
     """
-    Normaliza el número de teléfono:
+    Normaliza el número de teléfono para la PBX:
     1. Remueve espacios y caracteres especiales.
-    2. Si empieza con el código de país '58' seguido de un '0', elimina ese '0' (ej. 580412... -> 58412...).
-    3. Si el usuario ingresó un '0' al inicio sin código de país (ej. 0412...), puedes decidir si mantenerlo o removerlo.
+    2. Si empieza con el código de país '58' (ej. 580424... o 58424...), lo remueve y asegura el prefijo '0'.
+    3. Si el número no empieza con '0' y tiene 10 dígitos (ej. 424...), le agrega el '0' al inicio.
     """
     if not phone_str:
         return ""
@@ -17,11 +17,19 @@ def normalize_phone_number(phone_str):
     # 1. Remueve todo lo que no sea un dígito numérico
     clean_str = re.sub(r'\D', '', phone_str)
     
-    # 2. Si el número empieza con "580", reemplazamos "580" por "58" al inicio
-    if clean_str.startswith("580"):
-        clean_str = "58" + clean_str[3:]
+    # 2. Si empieza con "58", removemos el código de país y nos aseguramos de que empiece con "0"
+    if clean_str.startswith("58"):
+        if clean_str.startswith("580"):
+            clean_str = clean_str[2:]  # Convierte 580424... en 0424...
+        else:
+            clean_str = "0" + clean_str[2:]  # Convierte 58424... en 0424...
+            
+    # 3. Si no empieza con "0" y tiene 10 dígitos (como 4241222517), le anteponemos "0"
+    if not clean_str.startswith("0") and len(clean_str) == 10:
+        clean_str = "0" + clean_str
         
     return clean_str
+
 
 class AMIClient:
     """
@@ -105,7 +113,7 @@ class AMIClient:
         y, una vez que este conteste, realizar la llamada al número del lead.
         """
         # Marcamos primero al agente (ej: Local/3000@from-internal)
-        channel = f"PJSIP/{agent_exten}@Movistar_VE"
+        channel = f"Local/{agent_exten}@from-internal"
         
         # Limpiamos el nombre de caracteres que puedan romper el protocolo AMI
         safe_name = str(lead_name or "Sin Nombre").replace('"', '').replace('\r', '').replace('\n', '')

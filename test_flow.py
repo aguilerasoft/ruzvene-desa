@@ -10,9 +10,15 @@ URL_WEBHOOK = "http://127.0.0.1:8000/api/webhook/kommo/"
 leads_prueba = [
     {
         "name": "Cristian Aguilera",
-        "phone": "04241222517",
-        "contact_id": "43684617913",
-        "lead_id": "351443627913"
+        "phone": "+584241222517",
+        "contact_id": "436846179132",
+        "lead_id": "3514436279123"
+    },
+    {
+        "name":"Karina Gonzalez",
+        "phone":"+584241350590",
+        "contact_id":"1234567",
+        "lead_id":"1234567"
     }
 ]
 
